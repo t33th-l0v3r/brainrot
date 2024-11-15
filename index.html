@@ -3,8 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BRAINROT</title>
+    <title>Text Over Video Background</title>
     <style>
+        /* Ensure font-face is applied properly */
+        @font-face {
+            font-family: 'Komikax';
+            src: url('k.ttf') format('truetype');
+        }
+
         /* Your existing styles */
         #backgroundVideo {
             position: fixed;
@@ -19,7 +25,7 @@
         #content {
             position: relative;
             color: white;
-            font-family: 'Komikax', sans-serif;
+            font-family: 'Komikax', sans-serif; /* Make sure this is applied */
             text-align: center;
             margin-top: 50px;
             z-index: 1;
@@ -44,18 +50,12 @@
                 0px -4px 8px black, 
                 4px 0px 8px black, 
                 -4px 0px 8px black;
-            width: 80%;  /* Set a specific width */
-            max-width: 900px; /* Optional, to set an upper limit for the width */
-            margin-left: auto; /* Center the text horizontally */
-            margin-right: auto; /* Center the text horizontally */
-            word-wrap: break-word; /* Ensure long words break and don't overflow */
+            width: 80%;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            word-wrap: break-word;
         }
-
-        @font-face {
-            font-family: 'Komikax';
-            src: url('k.ttf') format('truetype');
-        }
-
 
         #inputText {
             width: 50%;
@@ -70,18 +70,15 @@
             color: white; /* Placeholder text color */
         }
 
-
         #speedLabel {
             font-size: 1em;
         }
-        
     </style>
 </head>
 <body>
 
     <!-- Background YouTube Video -->
     <div id="backgroundVideo">
-        <!-- YouTube iframe that will be dynamically loaded -->
         <iframe id="youtubeVideo" width="100%" height="100%" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
     </div>
 
@@ -103,7 +100,7 @@
     </div>
 
     <script>
-        // Array of YouTube video URLs
+        // Array of regular YouTube video URLs (for desktop)
         const videoLinks = [
             "https://www.youtube.com/watch?v=u7kdVe8q5zs&t=32s",
             "https://www.youtube.com/watch?v=n_Dv4JMiwK8&t=3s",
@@ -112,17 +109,36 @@
             "https://www.youtube.com/watch?v=G0WXGGtqQj4"
         ];
 
-        // Function to choose a random video from the array
-        function getRandomVideo() {
-            const randomIndex = Math.floor(Math.random() * videoLinks.length);
-            const videoUrl = videoLinks[randomIndex];
+        // Array of vertical YouTube video URLs (for mobile)
+        const verticalVideos = [
+            "https://www.youtube.com/watch?v=s600FYgI5-s",
+            "https://www.youtube.com/watch?v=7yl7Wc1dtWc",
+            "https://www.youtube.com/watch?v=-LZceM7L8AE",
+            "https://www.youtube.com/watch?v=S3ZDCz-zQuM"
+        ];
+
+        // Function to choose a random video from an array of video links
+        function getRandomVideo(videoArray) {
+            const randomIndex = Math.floor(Math.random() * videoArray.length);
+            const videoUrl = videoArray[randomIndex];
             const videoId = new URL(videoUrl).searchParams.get("v");
             const startTime = new URL(videoUrl).searchParams.get("t") || "0"; // Default to 0 seconds if no start time is provided
             return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&start=${startTime}`;
         }
 
-        // Set the iframe source to a randomly chosen video
-        document.getElementById("youtubeVideo").src = getRandomVideo();
+        // Detect if the user is on a mobile device
+        function isMobile() {
+            return window.innerWidth <= 768;  // Can adjust this width for your needs
+        }
+
+        // Set the iframe source to a randomly chosen video (mobile or desktop)
+        function setVideoSource() {
+            const videoUrl = isMobile() ? getRandomVideo(verticalVideos) : getRandomVideo(videoLinks);
+            document.getElementById("youtubeVideo").src = videoUrl;
+        }
+
+        // Call the function to set the video source
+        setVideoSource();
 
         let sentences = [];
         let index = 0;
@@ -141,23 +157,21 @@
 
         function startDisplay() {
             const text = document.getElementById("inputText").value;
-            // Split the text into sentences while keeping punctuation with the sentence
             sentences = text.split(/([!?.,/&%())])/).filter(Boolean);
-            
-            // Reassemble the sentences, making sure punctuation is included in the same sentence
+
             let result = [];
             let currentSentence = '';
             sentences.forEach(word => {
                 if (/[!?.,/&%())]/.test(word)) {
-                    currentSentence += word;  // Append punctuation to the sentence
-                    result.push(currentSentence);  // Push the sentence with punctuation
-                    currentSentence = '';  // Start a new sentence
+                    currentSentence += word;
+                    result.push(currentSentence);
+                    currentSentence = '';
                 } else {
-                    currentSentence += word;  // Continue adding words to the current sentence
+                    currentSentence += word;
                 }
             });
 
-            sentences = result.filter(Boolean); // Clean up any empty sentences
+            sentences = result.filter(Boolean);
             index = 0;
             paused = false;
             showNextSentence();
@@ -168,14 +182,11 @@
                 const sentence = sentences[index].trim();
                 document.getElementById("display").textContent = sentence;
 
-                // Stop any ongoing speech
                 window.speechSynthesis.cancel();
 
-                // Speak the current sentence
                 utterance = new SpeechSynthesisUtterance(sentence);
                 utterance.rate = getSpeechRate();
 
-                // Handle speech end to move to the next sentence
                 utterance.onend = function () {
                     index++;
                     if (!paused && index < sentences.length) {
