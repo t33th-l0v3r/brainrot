@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Over Video Background</title>
+    <style>
+        /* Your existing styles */
+        #backgroundVideo {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.8;
+        }
+
+        #content {
+            position: relative;
+            color: white;
+            font-family: 'Komikax', sans-serif;
+            text-align: center;
+            margin-top: 50px;
+            z-index: 1;
+        }
+
+        #display {
+            font-size: 2.5em;
+            margin-top: 100px;
+            padding: 10px;
+            color: white;
+            letter-spacing: 4px;
+            text-shadow: 
+                2px 2px 4px black, 
+                -2px -2px 4px black, 
+                2px -2px 4px black, 
+                -2px 2px 4px black,
+                3px 3px 6px black,
+                -3px -3px 6px black, 
+                3px -3px 6px black, 
+                -3px 3px 6px black, 
+                0px 4px 8px black, 
+                0px -4px 8px black, 
+                4px 0px 8px black, 
+                -4px 0px 8px black;
+            width: 80%;  /* Set a specific width */
+            max-width: 900px; /* Optional, to set an upper limit for the width */
+            margin-left: auto; /* Center the text horizontally */
+            margin-right: auto; /* Center the text horizontally */
+            word-wrap: break-word; /* Ensure long words break and don't overflow */
+        }
+
+        @font-face {
+            font-family: 'Komikax';
+            src: url('Komikax_.ttf') format('truetype');
+        }
+
+        #inputText {
+            width: 50%;
+            height: 50px;
+            background-color: transparent;
+            border: 2px solid white; /* Optional: Adds a white border for visibility */
+            color: white; /* Text color */
+            padding: 10px;
+        }
+
+        #inputText::placeholder {
+            color: white; /* Placeholder text color */
+        }
+
+
+        #speedLabel {
+            font-size: 1em;
+        }
+        
+    </style>
+</head>
+<body>
+
+    <!-- Background YouTube Video -->
+    <div id="backgroundVideo">
+        <!-- YouTube iframe that will be dynamically loaded -->
+        <iframe id="youtubeVideo" width="100%" height="100%" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    </div>
+
+    <!-- Content Overlay -->
+    <div id="content">
+        <h3>Paste Text</h3>
+        <textarea id="inputText" placeholder="Paste your text here..."></textarea>
+        <br><br>
+
+        <label for="speedRange" id="speedLabel">Display Speed: 400 ms</label>
+        <input type="range" id="speedRange" min="1" max="400" step="1" value="400" onchange="updateSpeedLabel()">
+
+        <br><br>
+        
+        <button onclick="startDisplay()">Start</button>
+        <button onclick="togglePause()" id="pauseButton">Pause</button>
+        
+        <div id="display"></div>
+    </div>
+
+    <script>
+        // Array of YouTube video URLs
+        const videoLinks = [
+            "https://www.youtube.com/watch?v=u7kdVe8q5zs&t=32s",
+            "https://www.youtube.com/watch?v=n_Dv4JMiwK8&t=3s",
+            "https://www.youtube.com/watch?v=REuKymvrrqk&t=64s",
+            "https://www.youtube.com/watch?v=OqPxaKs8xrk&t=2121s",
+            "https://www.youtube.com/watch?v=G0WXGGtqQj4"
+        ];
+
+        // Function to choose a random video from the array
+        function getRandomVideo() {
+            const randomIndex = Math.floor(Math.random() * videoLinks.length);
+            const videoUrl = videoLinks[randomIndex];
+            const videoId = new URL(videoUrl).searchParams.get("v");
+            const startTime = new URL(videoUrl).searchParams.get("t") || "0"; // Default to 0 seconds if no start time is provided
+            return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&start=${startTime}`;
+        }
+
+        // Set the iframe source to a randomly chosen video
+        document.getElementById("youtubeVideo").src = getRandomVideo();
+
+        let sentences = [];
+        let index = 0;
+        let displaySpeed = 400;
+        let paused = false;
+        let utterance;
+
+        function updateSpeedLabel() {
+            displaySpeed = document.getElementById("speedRange").value;
+            document.getElementById("speedLabel").textContent = "Display Speed: " + displaySpeed + " ms";
+        }
+
+        function getSpeechRate() {
+            return Math.max(0.5, 2 - ((displaySpeed - 100) / 400) * 1.5);
+        }
+
+        function startDisplay() {
+            const text = document.getElementById("inputText").value;
+            // Split the text into sentences while keeping punctuation with the sentence
+            sentences = text.split(/([!?.,/&%())])/).filter(Boolean);
+            
+            // Reassemble the sentences, making sure punctuation is included in the same sentence
+            let result = [];
+            let currentSentence = '';
+            sentences.forEach(word => {
+                if (/[!?.,/&%())]/.test(word)) {
+                    currentSentence += word;  // Append punctuation to the sentence
+                    result.push(currentSentence);  // Push the sentence with punctuation
+                    currentSentence = '';  // Start a new sentence
+                } else {
+                    currentSentence += word;  // Continue adding words to the current sentence
+                }
+            });
+
+            sentences = result.filter(Boolean); // Clean up any empty sentences
+            index = 0;
+            paused = false;
+            showNextSentence();
+        }
+
+        function showNextSentence() {
+            if (index < sentences.length && !paused) {
+                const sentence = sentences[index].trim();
+                document.getElementById("display").textContent = sentence;
+
+                // Stop any ongoing speech
+                window.speechSynthesis.cancel();
+
+                // Speak the current sentence
+                utterance = new SpeechSynthesisUtterance(sentence);
+                utterance.rate = getSpeechRate();
+
+                // Handle speech end to move to the next sentence
+                utterance.onend = function () {
+                    index++;
+                    if (!paused && index < sentences.length) {
+                        setTimeout(showNextSentence, displaySpeed);
+                    }
+                };
+
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function togglePause() {
+            paused = !paused;
+            document.getElementById("pauseButton").textContent = paused ? "Resume" : "Pause";
+
+            if (paused) {
+                window.speechSynthesis.pause();
+            } else {
+                window.speechSynthesis.resume();
+                if (index < sentences.length) {
+                    setTimeout(showNextSentence, displaySpeed);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
